@@ -1,6 +1,5 @@
 
   WITH price_percentile_split AS (
-  -- 12 hours 3'37''
   SELECT
     bid__app_platform AS platform
     , bid__bid_request__exchange AS exchange
@@ -14,6 +13,7 @@
         ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.9999]) AS price_percentile
   FROM rtb.impressions_with_bids
   WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1)}}'
+    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-03-01'
     AND bid__price_data__model_type != ''
   GROUP BY 1,2,3,4
   )
@@ -52,6 +52,7 @@ FROM price_percentile_split
       b.id AS campaign_id
       , sd.sales_region__c as sales_region
       , sd.service_level__c AS service_level
+      , sd.sales_sub_region__c AS sales_sub_region
     FROM salesforce_daily.customer_campaign__c sd 
     JOIN pinpoint.public.campaigns b      
         ON sd.campaign_id_18_digit__c = b.salesforce_campaign_id
@@ -79,6 +80,10 @@ FROM price_percentile_split
            ELSE 'html-interstitial' END AS ad_format
     , 'N/A' AS  is_viewthrough
     , bid__price_data__model_type AS model_type
+    , bid__campaign_tracker_type AS campaign_tracker_type
+    , cb.name AS convx_percentile
+    , cb.low AS convx_percentile_low
+    , cb.high AS convx_percentile_high
     , sum(1) AS impressions
     , sum(0) AS clicks
     , sum(0) AS installs
@@ -99,8 +104,19 @@ FROM price_percentile_split
         + COALESCE(bid__price_data__predicted_imp_to_install_ct_rate, 0)) * LEAST(bid__price_data__predicted_install_to_revenue_rate,500000000)) AS predicted_customer_revenue_micros_ct
     , SUM(bid__price_data__predicted_imp_to_install_vt_rate * LEAST(bid__price_data__predicted_install_to_revenue_rate,500000000)) AS predicted_customer_revenue_micros_vt
     FROM rtb.impressions_with_bids a
+    JOIN convx_buckets cb
+        ON a.bid__app_platform = cb.platform
+            AND a.bid__price_data__model_type = cb.model_type
+            AND (CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST'
+                      WHEN bid__creative__ad_format = 'native' THEN 'native'
+                      WHEN bid__creative__ad_format IN ('320x50', '728x90') THEN 'banner'
+                      WHEN bid__creative__ad_format = '300x250' THEN  'mrec'
+                      ELSE 'html-interstitial' END) = cb.ad_format
+            AND a.bid__bid_request__exchange = cb.exchange
+            AND a.bid__price_data__conversion_likelihood >= cb.low 
+            AND (cb.high IS NULL OR a.bid__price_data__conversion_likelihood < cb.high)
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
 
     UNION ALL 
     -- fetch ad clicks
@@ -123,7 +139,11 @@ FROM price_percentile_split
            WHEN  impression__bid__creative__ad_format = '300x250' THEN 'mrec'
            ELSE 'html-interstitial' END AS ad_format
     , 'N/A' AS is_viewthrough
-    , impression__bid__price_data__model_type as model_type
+    , impression__bid__price_data__model_type AS model_type
+    , impression__bid__campaign_tracker_type AS campaign_tracker_type
+    , cb.name AS convx_percentile
+    , cb.low AS convx_percentile_low
+    , cb.high AS convx_percentile_high
     , sum(0) AS impressions
     , sum(1) AS clicks
     , sum(0) AS installs
@@ -141,9 +161,20 @@ FROM price_percentile_split
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.ad_clicks a
+    JOIN convx_buckets cb
+        ON a.impression__bid__app_platform = cb.platform
+            AND a.impression__bid__price_data__model_type = cb.model_type
+            AND (CASE WHEN impression__bid__creative__ad_format = 'video' THEN 'VAST'
+                      WHEN impression__bid__creative__ad_format = 'native' THEN 'native'
+                      WHEN impression__bid__creative__ad_format IN ('320x50', '728x90') THEN 'banner'
+                      WHEN impression__bid__creative__ad_format = '300x250' THEN 'mrec'
+                      ELSE 'html-interstitial' END) = cb.ad_format
+            AND a.impression__bid__bid_request__exchange = cb.exchange
+            AND a.impression__bid__price_data__conversion_likelihood >= cb.low 
+            AND (cb.high IS NULL OR a.impression__bid__price_data__conversion_likelihood < cb.high)
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
     
     UNION ALL 
      -- fetch view clicks
@@ -166,7 +197,11 @@ FROM price_percentile_split
            WHEN  impression__bid__creative__ad_format = '300x250' THEN 'mrec'
            ELSE 'html-interstitial' END AS ad_format
     , 'N/A' AS is_viewthrough
-    , impression__bid__price_data__model_type as model_type
+    , impression__bid__price_data__model_type AS model_type
+    , impression__bid__campaign_tracker_type AS campaign_tracker_type
+    , cb.name AS convx_percentile
+    , cb.low AS convx_percentile_low
+    , cb.high AS convx_percentile_high
     , sum(0) AS impressions
     , sum(1) AS clicks
     , sum(0) AS installs
@@ -184,9 +219,20 @@ FROM price_percentile_split
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.view_clicks a
+    JOIN convx_buckets cb
+        ON a.impression__bid__app_platform = cb.platform
+            AND a.impression__bid__price_data__model_type = cb.model_type
+            AND (CASE WHEN impression__bid__creative__ad_format = 'video' THEN 'VAST'
+                      WHEN impression__bid__creative__ad_format = 'native' THEN 'native'
+                      WHEN impression__bid__creative__ad_format IN ('320x50', '728x90') THEN 'banner'
+                      WHEN impression__bid__creative__ad_format = '300x250' THEN 'mrec'
+                      ELSE 'html-interstitial' END) = cb.ad_format
+            AND a.impression__bid__bid_request__exchange = cb.exchange
+            AND a.impression__bid__price_data__conversion_likelihood >= cb.low 
+            AND (cb.high IS NULL OR a.impression__bid__price_data__conversion_likelihood < cb.high)
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
     
     UNION ALL    
     -- fetch installs
@@ -210,6 +256,10 @@ FROM price_percentile_split
            ELSE 'html-interstitial' END AS ad_format
     , CAST(is_viewthrough AS VARCHAR) AS is_viewthrough
     , ad_click__impression__bid__price_data__model_type AS model_type
+    , ad_click__impression__bid__campaign_tracker_type as campaign_tracker_type
+    , cb.name AS convx_percentile
+    , cb.low AS convx_percentile_low
+    , cb.high AS convx_percentile_high
     , sum(0) AS impressions
     , sum(0) AS clicks
     , sum(1) AS installs
@@ -227,10 +277,21 @@ FROM price_percentile_split
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.matched_installs a
+    JOIN convx_buckets cb
+        ON a.ad_click__impression__bid__app_platform = cb.platform
+            AND a.ad_click__impression__bid__price_data__model_type = cb.model_type
+            AND (CASE WHEN ad_click__impression__bid__creative__ad_format = 'video' THEN 'VAST'
+                      WHEN ad_click__impression__bid__creative__ad_format = 'native' THEN 'native'
+                      WHEN ad_click__impression__bid__creative__ad_format IN ('320x50', '728x90') THEN 'banner'
+                      WHEN ad_click__impression__bid__creative__ad_format = '300x250' THEN 'mrec'
+                      ELSE 'html-interstitial' END) = cb.ad_format
+            AND a.ad_click__impression__bid__bid_request__exchange = cb.exchange
+            AND a.ad_click__impression__bid__price_data__conversion_likelihood >= cb.low 
+            AND (cb.high IS NULL OR a.ad_click__impression__bid__price_data__conversion_likelihood < cb.high)
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
 
     UNION ALL 
     -- to fetch down funnel data (we are using 7d cohorted by installs data)
@@ -255,6 +316,10 @@ FROM price_percentile_split
            ELSE 'html-interstitial' END AS ad_format
     , CAST(is_viewthrough AS VARCHAR) AS is_viewthrough
     , COALESCE(attribution_event__click__impression__bid__price_data__model_type, reeng_click__impression__bid__price_data__model_type, install__ad_click__impression__bid__price_data__model_type) AS model_type
+    , COALESCE(install__ad_click__impression__bid__campaign_tracker_type, reeng_click__impression__bid__campaign_tracker_type, attribution_event__click__impression__bid__campaign_tracker_type) AS campaign_tracker_type
+    , cb.name AS convx_percentile
+    , cb.low AS convx_percentile_low
+    , cb.high AS convx_percentile_high    
     , sum(0) AS impressions
     , sum(0) AS clicks
     , sum(0) AS installs
@@ -272,10 +337,21 @@ FROM price_percentile_split
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.matched_app_events a
+    JOIN convx_buckets cb
+        ON COALESCE(install__ad_click__impression__bid__app_platform, reeng_click__impression__bid__app_platform, attribution_event__click__impression__bid__app_platform) = cb.platform
+            AND COALESCE(install__ad_click__impression__bid__price_data__model_type, reeng_click__impression__bid__price_data__model_type, attribution_event__click__impression__bid__price_data__model_type) = cb.model_type
+            AND (CASE WHEN COALESCE(install__ad_click__impression__bid__creative__ad_format,reeng_click__impression__bid__creative__ad_format,attribution_event__click__impression__bid__creative__ad_format) = 'video' THEN 'VAST'
+                      WHEN COALESCE(install__ad_click__impression__bid__creative__ad_format,reeng_click__impression__bid__creative__ad_format,attribution_event__click__impression__bid__creative__ad_format) = 'native' THEN 'native'
+                      WHEN COALESCE(install__ad_click__impression__bid__creative__ad_format,reeng_click__impression__bid__creative__ad_format,attribution_event__click__impression__bid__creative__ad_format) IN ('320x50', '728x90') THEN 'banner'
+                      WHEN COALESCE(install__ad_click__impression__bid__creative__ad_format,reeng_click__impression__bid__creative__ad_format,attribution_event__click__impression__bid__creative__ad_format) = '300x250' THEN  'mrec'
+                      ELSE 'html-interstitial' END) = cb.ad_format
+            AND COALESCE(install__ad_click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, attribution_event__click__impression__bid__bid_request__exchange) = cb.exchange
+            AND COALESCE(install__ad_click__impression__bid__price_data__conversion_likelihood, reeng_click__impression__bid__price_data__conversion_likelihood, attribution_event__click__impression__bid__price_data__conversion_likelihood) >= cb.low 
+            AND (cb.high IS NULL OR COALESCE(install__ad_click__impression__bid__price_data__conversion_likelihood, reeng_click__impression__bid__price_data__conversion_likelihood, attribution_event__click__impression__bid__price_data__conversion_likelihood) < cb.high)
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
 )
     SELECT
     f.impression_at
@@ -298,6 +374,7 @@ FROM price_percentile_split
     , apps.display_name AS dest_app_name
     , IF(c.vt_cap > 0, TRUE, FALSE) AS is_enrolled_in_vio
     , sd.sales_region AS campaign_sales_region
+    , sd.sales_sub_region AS campaign_sales_sub_region
     , ag.display_name as ad_group_name
     , ag.bid_type as ad_group_bid_type
     , ag.exploratory as exploratory_ad_group
@@ -308,7 +385,10 @@ FROM price_percentile_split
         WHEN f.ad_format = 'native' AND apps.native_viewthrough_enabled = TRUE THEN TRUE  
         ELSE FALSE END AS viewthrough_enabled
     , sd.service_level
-    , cb.name AS convx_percentile
+    , f.campaign_tracker_type
+    , f.convx_percentile
+    , f.convx_percentile_low
+    , f.convx_percentile_high
     , sum(f.impressions) AS impressions
     , sum(f.clicks) AS clicks
     , sum(f.installs) AS installs
@@ -336,12 +416,7 @@ FROM price_percentile_split
      ON f.dest_app_id = apps.id
   LEFT JOIN pinpoint.public.ad_groups ag
      ON f.ad_group_id = ag.id    
-  LEFT JOIN convx_buckets cb
-     ON f.platform = cb.platform
-        AND f.model_type = cb.model_type
-        AND f.ad_format = cb.ad_format
-        AND f.exchange = cb.exchange
-        AND f.predicted_conversion_likelihood >= cb.low 
-        AND (cb.high IS NULL OR f.predicted_conversion_likelihood < cb.high)
-  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
+  WHERE f.customer_id = 753
+    AND f.exchange = 'SMAATO'
+  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
   
