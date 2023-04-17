@@ -1,4 +1,48 @@
-WITH latest_sfdc_partition AS (
+
+  WITH price_percentile_split AS (
+  -- 12 hours 3'37''
+  SELECT
+    bid__app_platform AS platform
+    , bid__bid_request__exchange AS exchange
+    , bid__price_data__model_type AS model_type
+    , CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST'
+           WHEN bid__creative__ad_format = 'native' THEN 'native'
+           WHEN bid__creative__ad_format IN ('320x50', '728x90') THEN 'banner'
+           WHEN  bid__creative__ad_format = '300x250' THEN  'mrec'
+           ELSE 'html-interstitial' END AS ad_format
+    , approx_percentile(bid__price_data__conversion_likelihood,
+        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.9999]) AS price_percentile
+  FROM rtb.impressions_with_bids
+  WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1)}}'
+    AND bid__price_data__model_type != ''
+  GROUP BY 1,2,3,4
+  )
+  , percentile_bucket AS (
+  SELECT
+  platform
+  , exchange
+  , ad_format
+  , model_type
+  , CAST(
+        zip(
+         ARRAY[0] || price_percentile, price_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
+         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-95', '95-99', '99-99.99', '99.99-100']
+        ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS percentiles
+FROM price_percentile_split
+ )
+, convx_buckets AS (
+  SELECT 
+  platform
+  , model_type
+  , exchange
+  , ad_format
+  , p.low
+  , p.high
+  , p.name
+  FROM percentile_bucket
+  CROSS JOIN UNNEST(percentiles) AS p
+)
+, latest_sfdc_partition AS (
     SELECT MAX(dt) AS latest_dt 
     FROM salesforce_daily.customer_campaign__c  
     WHERE from_iso8601_timestamp(dt) >= CURRENT_TIMESTAMP - INTERVAL '2' DAY
@@ -12,18 +56,6 @@ WITH latest_sfdc_partition AS (
     JOIN pinpoint.public.campaigns b      
         ON sd.campaign_id_18_digit__c = b.salesforce_campaign_id
     WHERE sd.dt = (select latest_dt FROM latest_sfdc_partition)
-)
-, convx_buckets AS (
-  SELECT 
-  platform
-  , model_type
-  , exchange
-  , ad_group_id
-  , p.low
-  , p.high
-  , p.name
-  FROM product_analytics.convx_likelihood_bucket_v1
-  CROSS JOIN UNNEST(percentiles) AS p
 )
 , funnel AS (
     -- fetch impressions
@@ -67,7 +99,7 @@ WITH latest_sfdc_partition AS (
         + COALESCE(bid__price_data__predicted_imp_to_install_ct_rate, 0)) * LEAST(bid__price_data__predicted_install_to_revenue_rate,500000000)) AS predicted_customer_revenue_micros_ct
     , SUM(bid__price_data__predicted_imp_to_install_vt_rate * LEAST(bid__price_data__predicted_install_to_revenue_rate,500000000)) AS predicted_customer_revenue_micros_vt
     FROM rtb.impressions_with_bids a
-    WHERE dt BETWEEN '2023-04-12T01' AND '2023-04-12T06'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 
     UNION ALL 
@@ -109,7 +141,7 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.ad_clicks a
-    WHERE dt BETWEEN '2023-04-12T01' AND '2023-04-12T06'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
     
@@ -152,7 +184,7 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.view_clicks a
-    WHERE dt BETWEEN '2023-04-12T01' AND '2023-04-12T06'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
     
@@ -195,7 +227,7 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.matched_installs a
-    WHERE dt BETWEEN '2023-04-12T01' AND '2023-04-12T06'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -240,12 +272,12 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.matched_app_events a
-    WHERE dt BETWEEN '2023-04-12T01' AND '2023-04-12T06'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 )
- SELECT
+    SELECT
     f.impression_at
     , f.click_at
     , f.install_at
@@ -303,16 +335,13 @@ WITH latest_sfdc_partition AS (
   LEFT JOIN pinpoint.public.apps apps
      ON f.dest_app_id = apps.id
   LEFT JOIN pinpoint.public.ad_groups ag
-     ON f.ad_group_id = ag.id
+     ON f.ad_group_id = ag.id    
   LEFT JOIN convx_buckets cb
      ON f.platform = cb.platform
         AND f.model_type = cb.model_type
-        AND f.ad_group_id = cb.ad_group_id
+        AND f.ad_format = cb.ad_format
         AND f.exchange = cb.exchange
         AND f.predicted_conversion_likelihood >= cb.low 
         AND (cb.high IS NULL OR f.predicted_conversion_likelihood < cb.high)
-
-  WHERE f.ad_group_id = 129051
-    AND f.exchange = 'SMAATO'
-    AND f.impression_at >= '2023-04-12T04' and f.impression_at <= '2023-04-12T10'
   GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
+  
