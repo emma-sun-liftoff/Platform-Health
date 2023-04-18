@@ -58,6 +58,24 @@ FROM price_percentile_split
         ON sd.campaign_id_18_digit__c = b.salesforce_campaign_id
     WHERE sd.dt = (select latest_dt FROM latest_sfdc_partition)
 )
+, goals AS (
+   SELECT
+    campaign_id,
+    ARBITRARY(IF(priority = 1, type, NULL)) AS goal_1,
+    ARBITRARY(IF(priority = 2, type, NULL)) AS goal_2,
+    ARBITRARY(IF(priority = 3, type, NULL)) AS goal_3,
+    ARBITRARY(IF(priority = 1, target_value, NULL)) AS goal_1_value,
+    ARBITRARY(IF(priority = 2, target_value, NULL)) AS goal_2_value,
+    ARBITRARY(IF(priority = 3, target_value, NULL)) AS goal_3_value
+   FROM pinpoint.public.goals
+   GROUP BY 1
+)
+, targets AS (
+   SELECT 
+    campaign_id
+    , target AS treasurer_target
+   FROM pinpoint.public.campaign_treasurer_configs
+)
 , funnel AS (
     -- fetch impressions
     SELECT
@@ -67,6 +85,7 @@ FROM price_percentile_split
     , CONCAT(SUBSTR(to_iso8601(date_trunc('hour', from_unixtime(at/1000, 'UTC'))),1,19),'Z') AS at
     , bid__app_platform AS platform
     , bid__bid_request__exchange AS exchange
+    , bid__bid_request__device__geo__country AS country
     , bid__customer_id AS customer_id
     , bid__app_id AS dest_app_id
     , bid__campaign_id AS campaign_id
@@ -84,6 +103,7 @@ FROM price_percentile_split
     , cb.name AS convx_percentile
     , cb.low AS convx_percentile_low
     , cb.high AS convx_percentile_high
+    , NULL AS click_source
     , sum(1) AS impressions
     , sum(0) AS clicks
     , sum(0) AS installs
@@ -116,7 +136,7 @@ FROM price_percentile_split
             AND a.bid__price_data__conversion_likelihood >= cb.low 
             AND (cb.high IS NULL OR a.bid__price_data__conversion_likelihood < cb.high)
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21
 
     UNION ALL 
     -- fetch ad clicks
@@ -127,6 +147,7 @@ FROM price_percentile_split
     , CONCAT(substr(to_iso8601(date_trunc('hour', from_unixtime(at/1000, 'UTC'))),1,19),'Z') AS at
     , impression__bid__app_platform as platform
     , impression__bid__bid_request__exchange as exchange
+    , geo__country AS country
     , impression__bid__customer_id as customer_id
     , impression__bid__app_id as dest_app_id
     , impression__bid__campaign_id as campaign_id
@@ -144,6 +165,7 @@ FROM price_percentile_split
     , cb.name AS convx_percentile
     , cb.low AS convx_percentile_low
     , cb.high AS convx_percentile_high
+    , click_source AS click_source
     , sum(0) AS impressions
     , sum(1) AS clicks
     , sum(0) AS installs
@@ -174,7 +196,7 @@ FROM price_percentile_split
             AND (cb.high IS NULL OR a.impression__bid__price_data__conversion_likelihood < cb.high)
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21
     
     UNION ALL 
      -- fetch view clicks
@@ -185,6 +207,7 @@ FROM price_percentile_split
     , CONCAT(substr(to_iso8601(date_trunc('hour', from_unixtime(at/1000, 'UTC'))),1,19),'Z') AS at
     , impression__bid__app_platform as platform
     , impression__bid__bid_request__exchange as exchange
+    , geo__country AS country
     , impression__bid__customer_id as customer_id
     , impression__bid__app_id as dest_app_id
     , impression__bid__campaign_id as campaign_id
@@ -202,6 +225,7 @@ FROM price_percentile_split
     , cb.name AS convx_percentile
     , cb.low AS convx_percentile_low
     , cb.high AS convx_percentile_high
+    , click_source AS click_source
     , sum(0) AS impressions
     , sum(1) AS clicks
     , sum(0) AS installs
@@ -232,7 +256,7 @@ FROM price_percentile_split
             AND (cb.high IS NULL OR a.impression__bid__price_data__conversion_likelihood < cb.high)
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21
     
     UNION ALL    
     -- fetch installs
@@ -243,6 +267,7 @@ FROM price_percentile_split
     , CONCAT(SUBSTR(to_iso8601(date_trunc('hour', from_unixtime(event_timestamp/1000, 'UTC'))),1,19),'Z') AS at
     , ad_click__impression__bid__app_platform AS platform
     , ad_click__impression__bid__bid_request__exchange AS exchange
+    , geo__country AS country
     , ad_click__impression__bid__customer_id AS customer_id
     , ad_click__impression__bid__app_id AS dest_app_id
     , ad_click__impression__bid__campaign_id AS campaign_id
@@ -260,6 +285,7 @@ FROM price_percentile_split
     , cb.name AS convx_percentile
     , cb.low AS convx_percentile_low
     , cb.high AS convx_percentile_high
+    , ad_click__click_source AS click_source
     , sum(0) AS impressions
     , sum(0) AS clicks
     , sum(1) AS installs
@@ -291,7 +317,7 @@ FROM price_percentile_split
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21
 
     UNION ALL 
     -- to fetch down funnel data (we are using 7d cohorted by installs data)
@@ -303,6 +329,7 @@ FROM price_percentile_split
     , CONCAT(SUBSTR(to_iso8601(date_trunc('hour', from_unixtime(event_timestamp/1000, 'UTC'))),1,19),'Z') AS at
     , COALESCE(attribution_event__click__impression__bid__app_platform, reeng_click__impression__bid__app_platform, install__ad_click__impression__bid__app_platform) AS platform
     , COALESCE(attribution_event__click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, install__ad_click__impression__bid__bid_request__exchange) AS exchange
+    , COALESCE(attribution_event__click__geo__country, reeng_click__geo__country, install__geo__country) AS country
     , COALESCE(attribution_event__click__impression__bid__customer_id, reeng_click__impression__bid__customer_id, install__ad_click__impression__bid__customer_id) AS customer_id
     , COALESCE(attribution_event__click__impression__bid__app_id, reeng_click__impression__bid__app_id, install__ad_click__impression__bid__app_id) AS dest_app_id 
     , COALESCE(attribution_event__click__impression__bid__campaign_id, reeng_click__impression__bid__campaign_id, install__ad_click__impression__bid__campaign_id) AS campaign_id
@@ -320,6 +347,7 @@ FROM price_percentile_split
     , cb.name AS convx_percentile
     , cb.low AS convx_percentile_low
     , cb.high AS convx_percentile_high    
+    , COALESCE(attribution_event__click__click_source, reeng_click__click_source, install__ad_click__click_source) AS click_source
     , sum(0) AS impressions
     , sum(0) AS clicks
     , sum(0) AS installs
@@ -351,7 +379,7 @@ FROM price_percentile_split
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19
+    GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21
 )
     SELECT
     f.impression_at
@@ -360,6 +388,7 @@ FROM price_percentile_split
     , f.at
     , f.platform
     , f.exchange
+    , f.country
     , f.customer_id
     , cu.company AS customer_name
     , f.dest_app_id
@@ -389,6 +418,12 @@ FROM price_percentile_split
     , f.convx_percentile
     , f.convx_percentile_low
     , f.convx_percentile_high
+    , f.click_source
+    , IF(f.dest_app_id IS NULL,'N/A',goals.goal_1) AS goal_type_1
+    , IF(f.dest_app_id IS NULL, NULL,goals.goal_1_value) AS goal_1_value
+    , IF(f.dest_app_id IS NULL,'N/A',goals.goal_2) AS goal_type_2
+    , IF(f.dest_app_id IS NULL, NULL,goals.goal_2_value) AS goal_2_value
+    , targets.treasurer_target AS treasurer_target 
     , sum(f.impressions) AS impressions
     , sum(f.clicks) AS clicks
     , sum(f.installs) AS installs
@@ -416,7 +451,8 @@ FROM price_percentile_split
      ON f.dest_app_id = apps.id
   LEFT JOIN pinpoint.public.ad_groups ag
      ON f.ad_group_id = ag.id    
-  WHERE f.customer_id = 753
-    AND f.exchange = 'SMAATO'
-  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31
-  
+  LEFT JOIN goals
+     ON f.campaign_id = goals.campaign_id
+  LEFT JOIN targets 
+  	 ON f.campaign_id = targets.campaign_id
+  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38
