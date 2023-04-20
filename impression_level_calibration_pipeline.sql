@@ -141,6 +141,10 @@
     , sum(0) AS target_events_d7
     , sum(0) AS target_events_first_d7
     , sum(bid__price_data__conversion_likelihood) AS predicted_conversion_likelihood
+    , sum(bid__auction_result__winner__price_cpm_micros) AS preshaded_cpm_micros
+    , sum(CAST(bid__auction_result__winner__price_cpm_micros AS double)/CAST(bid__price_data__compensated_margin_bid_multiplier AS double)) AS private_cpm_micros
+    , sum(bid__price_data__ad_group_cpx_bid_micros) AS bid_target_total
+    , sum(bid__price_data__effective_cpx_bid_micros) AS effective_bid_target 
     , SUM(bid__price_data__predicted_imp_to_click_rate) AS predicted_clicks
     , SUM(COALESCE(bid__price_data__predicted_imp_to_click_rate * bid__price_data__predicted_click_to_install_rate, 0)
         + COALESCE(bid__price_data__predicted_imp_to_install_ct_rate, 0)) as predicted_installs_ct
@@ -213,6 +217,10 @@
     , sum(0) AS target_events_d7
     , sum(0) AS target_events_first_d7
     , sum(0) AS predicted_conversion_likelihood
+    , sum(0) AS preshaded_cpm_micros
+    , sum(0) AS private_cpm_micros
+    , sum(0) AS bid_target_total
+    , sum(0) AS effective_bid_target
     , sum(0) AS predicted_clicks
     , sum(0) AS predicted_installs_ct
     , sum(0) AS predicted_installs_vt
@@ -283,6 +291,10 @@
     , sum(0) AS target_events_d7
     , sum(0) AS target_events_first_d7
     , sum(0) AS predicted_conversion_likelihood
+    , sum(0) AS preshaded_cpm_micros
+    , sum(0) AS private_cpm_micros
+    , sum(0) AS bid_target_total
+    , sum(0) AS effective_bid_target
     , sum(0) AS predicted_clicks
     , sum(0) AS predicted_installs_ct
     , sum(0) AS predicted_installs_vt
@@ -353,6 +365,10 @@
     , sum(0) AS target_events_d7
     , sum(0) AS target_events_first_d7
     , sum(0) AS predicted_conversion_likelihood
+    , sum(0) AS preshaded_cpm_micros
+    , sum(0) AS private_cpm_micros
+    , sum(0) AS bid_target_total
+    , sum(0) AS effective_bid_target
     , sum(0) AS predicted_clicks
     , sum(0) AS predicted_installs_ct
     , sum(0) AS predicted_installs_vt
@@ -425,6 +441,10 @@
     , sum(IF(custom_event_id = COALESCE(install__ad_click__impression__bid__campaign_target_event_id, reeng_click__impression__bid__campaign_target_event_id),1,0)) AS target_events_d7
     , sum(IF(custom_event_id = COALESCE(install__ad_click__impression__bid__campaign_target_event_id,reeng_click__impression__bid__campaign_target_event_id) AND first_occurrence,1,0)) AS target_events_first_d7
     , sum(0) AS predicted_conversion_likelihood
+    , sum(0) AS preshaded_cpm_micros
+    , sum(0) AS private_cpm_micros
+    , sum(0) AS bid_target_total
+    , sum(0) AS effective_bid_target
     , sum(0) AS predicted_clicks
     , sum(0) AS predicted_installs_ct
     , sum(0) AS predicted_installs_vt
@@ -464,44 +484,47 @@
     , f.customer_id
     , cu.company AS customer_name
     , f.dest_app_id
-    , f.campaign_id
-    , f.ad_group_id
-    , f.ad_group_type
-    , c.current_optimization_state
-    , f.creative_type
-    , f.ad_format
-    , f.is_viewthrough 
-    , c.display_name AS campaign_name
     , apps.display_name AS dest_app_name
+    , f.campaign_id
+    , c.display_name AS campaign_name
+    , c.current_optimization_state
+    , targets.treasurer_target AS treasurer_target
+    , f.ad_group_type
+    , ag.exploratory as exploratory_ad_group
+    , ag.bid_type as ad_group_bid_type
+    , f.ad_group_id
+    , ag.display_name as ad_group_name
+    , f.ad_format
+    , f.model_type
+    , f.campaign_tracker_type
+    , f.creative_type
+    , f.click_source
+    , f.is_viewthrough 
     , IF(c.vt_cap > 0, TRUE, FALSE) AS is_enrolled_in_vio
+    , CASE WHEN f.creative_type = 'VAST' AND apps.video_viewthrough_enabled = TRUE THEN TRUE
+           WHEN f.ad_format in ('banner','mrec') AND f.creative_type = 'HTML' AND apps.banner_viewthrough_enabled = TRUE THEN TRUE
+           WHEN f.ad_format = 'interstitial' AND f.creative_type = 'HTML' AND apps.interstitial_viewthrough_enabled = TRUE THEN TRUE
+           WHEN f.ad_format = 'native' AND apps.native_viewthrough_enabled = TRUE THEN TRUE  
+           ELSE FALSE END AS viewthrough_enabled
+    , sd.service_level
     , sd.sales_region AS campaign_sales_region
     , sd.sales_sub_region AS campaign_sales_sub_region
-    , ag.display_name as ad_group_name
-    , ag.bid_type as ad_group_bid_type
-    , ag.exploratory as exploratory_ad_group
-    , f.model_type
-    , CASE WHEN f.creative_type = 'VAST' AND apps.video_viewthrough_enabled = TRUE THEN TRUE
-        WHEN f.ad_format in ('banner','mrec') AND f.creative_type = 'HTML' AND apps.banner_viewthrough_enabled = TRUE THEN TRUE
-        WHEN f.ad_format = 'interstitial' AND f.creative_type = 'HTML' AND apps.interstitial_viewthrough_enabled = TRUE THEN TRUE
-        WHEN f.ad_format = 'native' AND apps.native_viewthrough_enabled = TRUE THEN TRUE  
-        ELSE FALSE END AS viewthrough_enabled
-    , sd.service_level
-    , f.campaign_tracker_type
-    , f.convx_percentile
-    , f.convx_percentile_low
-    , f.convx_percentile_high
-    , f.preshaded_price_percentile_low
-    , f.preshaded_price_percentile_high
-    , f.preshaded_price_percentile
-    , f.bid_target_percentile_low
-    , f.bid_target_percentile_high
-    , f.bid_target_percentile
-    , f.click_source
     , IF(f.dest_app_id IS NULL,'N/A',goals.goal_1) AS goal_type_1
     , IF(f.dest_app_id IS NULL, NULL,goals.goal_1_value) AS goal_1_value
     , IF(f.dest_app_id IS NULL,'N/A',goals.goal_2) AS goal_type_2
     , IF(f.dest_app_id IS NULL, NULL,goals.goal_2_value) AS goal_2_value
-    , targets.treasurer_target AS treasurer_target 
+    , IF(f.dest_app_id IS NULL,'N/A',goals.goal_3) AS goal_type_3
+    , IF(f.dest_app_id IS NULL, NULL,goals.goal_3_value) AS goal_3_value
+    , f.convx_percentile
+    , f.convx_percentile_low
+    , f.convx_percentile_high
+    , f.preshaded_price_percentile
+    , f.preshaded_price_percentile_low
+    , f.preshaded_price_percentile_high
+    , f.bid_target_percentile
+    , f.bid_target_percentile_low
+    , f.bid_target_percentile_high
+
     , sum(f.impressions) AS impressions
     , sum(f.clicks) AS clicks
     , sum(f.installs) AS installs
@@ -511,6 +534,10 @@
     , sum(IF(from_iso8601_timestamp(f.at) - from_iso8601_timestamp(IF(f.ad_group_type='reengagement', f.click_at, f.install_at)) < INTERVAL '7' DAY, f.target_events_d7, 0)) AS target_events_d7
     , sum(IF(from_iso8601_timestamp(f.at) - from_iso8601_timestamp(IF(f.ad_group_type='reengagement', f.click_at, f.install_at)) < INTERVAL '7' DAY, f.target_events_first_d7, 0)) AS target_events_first_d7 
     , sum(predicted_conversion_likelihood) AS predicted_conversion_likelihood
+    , sum(preshaded_cpm_micros) AS preshaded_cpm_micros
+    , sum(private_cpm_micros) AS private_cpm_micros
+    , sum(bid_target_total) AS bid_target_total
+    , sum(effective_bid_target) AS effective_bid_target
     , sum(predicted_clicks) AS predicted_clicks
     , sum(predicted_installs_ct) AS predicted_installs_ct
     , sum(predicted_installs_vt) AS predicted_installs_vt
@@ -533,5 +560,5 @@
      ON f.campaign_id = goals.campaign_id
   LEFT JOIN targets 
   	 ON f.campaign_id = targets.campaign_id
-  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44
+  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46
   
