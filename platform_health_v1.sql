@@ -16,7 +16,7 @@
     , approx_percentile(bid__price_data__ad_group_cpx_bid_micros,
         ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.9999]) AS bid_target_percentile
   FROM rtb.impressions_with_bids
-  WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+  WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
     AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-03-01'
     AND bid__price_data__model_type != ''
   GROUP BY 1,2,3,4
@@ -178,7 +178,7 @@
             AND (b.preshaded_price_percentile_high IS NULL OR a.bid__auction_result__winner__price_cpm_micros < b.preshaded_price_percentile_high)            
             AND a.bid__price_data__ad_group_cpx_bid_micros >= b.bid_target_percentile_low
             AND (b.bid_target_percentile_high IS NULL OR a.bid__price_data__ad_group_cpx_bid_micros < b.bid_target_percentile_high)   
-    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26
 
     UNION ALL 
@@ -250,7 +250,7 @@
             AND (b.preshaded_price_percentile_high IS NULL OR a.impression__bid__auction_result__winner__price_cpm_micros < b.preshaded_price_percentile_high)            
             AND a.impression__bid__price_data__ad_group_cpx_bid_micros >= b.bid_target_percentile_low
             AND (b.bid_target_percentile_high IS NULL OR a.impression__bid__price_data__ad_group_cpx_bid_micros < b.bid_target_percentile_high)   
-    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26
     
@@ -323,7 +323,7 @@
             AND (b.preshaded_price_percentile_high IS NULL OR a.impression__bid__auction_result__winner__price_cpm_micros < b.preshaded_price_percentile_high)            
             AND a.impression__bid__price_data__ad_group_cpx_bid_micros >= b.bid_target_percentile_low
             AND (b.bid_target_percentile_high IS NULL OR a.impression__bid__price_data__ad_group_cpx_bid_micros < b.bid_target_percentile_high)   
-    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26
     
@@ -396,7 +396,7 @@
             AND (b.preshaded_price_percentile_high IS NULL OR a.ad_click__impression__bid__auction_result__winner__price_cpm_micros < b.preshaded_price_percentile_high)            
             AND a.ad_click__impression__bid__price_data__ad_group_cpx_bid_micros >= b.bid_target_percentile_low
             AND (b.bid_target_percentile_high IS NULL OR a.ad_click__impression__bid__price_data__ad_group_cpx_bid_micros < b.bid_target_percentile_high)   
-    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26
@@ -472,7 +472,7 @@
             AND (b.preshaded_price_percentile_high IS NULL OR a.ad_click__impression__bid__auction_result__winner__price_cpm_micros < b.preshaded_price_percentile_high)            
             AND a.ad_click__impression__bid__price_data__ad_group_cpx_bid_micros >= b.bid_target_percentile_low
             AND (b.bid_target_percentile_high IS NULL OR a.ad_click__impression__bid__price_data__ad_group_cpx_bid_micros < b.bid_target_percentile_high)   
-    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26    
@@ -548,7 +548,7 @@
             AND (b.preshaded_price_percentile_high IS NULL OR COALESCE(install__ad_click__impression__bid__auction_result__winner__price_cpm_micros, reeng_click__impression__bid__auction_result__winner__price_cpm_micros, attribution_event__click__impression__bid__price_data__ad_group_cpx_bid_micros) < b.preshaded_price_percentile_high)            
             AND COALESCE(install__ad_click__impression__bid__price_data__ad_group_cpx_bid_micros, reeng_click__impression__bid__price_data__ad_group_cpx_bid_micros, attribution_event__click__impression__bid__price_data__ad_group_cpx_bid_micros) >= b.bid_target_percentile_low
             AND (b.bid_target_percentile_high IS NULL OR COALESCE(install__ad_click__impression__bid__price_data__ad_group_cpx_bid_micros, reeng_click__impression__bid__price_data__ad_group_cpx_bid_micros, attribution_event__click__impression__bid__price_data__ad_group_cpx_bid_micros) < b.bid_target_percentile_high)  
-    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26
@@ -624,7 +624,7 @@
             AND (b.preshaded_price_percentile_high IS NULL OR COALESCE(install__ad_click__impression__bid__auction_result__winner__price_cpm_micros, reeng_click__impression__bid__auction_result__winner__price_cpm_micros, attribution_event__click__impression__bid__price_data__ad_group_cpx_bid_micros) < b.preshaded_price_percentile_high)            
             AND COALESCE(install__ad_click__impression__bid__price_data__ad_group_cpx_bid_micros, reeng_click__impression__bid__price_data__ad_group_cpx_bid_micros, attribution_event__click__impression__bid__price_data__ad_group_cpx_bid_micros) >= b.bid_target_percentile_low
             AND (b.bid_target_percentile_high IS NULL OR COALESCE(install__ad_click__impression__bid__price_data__ad_group_cpx_bid_micros, reeng_click__impression__bid__price_data__ad_group_cpx_bid_micros, attribution_event__click__impression__bid__price_data__ad_group_cpx_bid_micros) < b.bid_target_percentile_high)  
-    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26   
