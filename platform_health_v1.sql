@@ -81,16 +81,16 @@
     WHERE sd.dt = (select latest_dt FROM latest_sfdc_partition)
 )
 , goals AS (
-   SELECT
-    campaign_id,
-    ARBITRARY(IF(priority = 1, type, NULL)) AS goal_1,
-    ARBITRARY(IF(priority = 2, type, NULL)) AS goal_2,
-    ARBITRARY(IF(priority = 3, type, NULL)) AS goal_3,
-    ARBITRARY(IF(priority = 1, target_value, NULL)) AS goal_1_value,
-    ARBITRARY(IF(priority = 2, target_value, NULL)) AS goal_2_value,
-    ARBITRARY(IF(priority = 3, target_value, NULL)) AS goal_3_value
-   FROM pinpoint.public.goals
-   GROUP BY 1
+     SELECT campaign_id, priority, type, target_value
+     FROM (SELECT campaign_id, priority, type, target_value, ROW_NUMBER()
+    	OVER
+		(PARTITION BY campaign_id
+		ORDER BY campaign_id, priority ASC) as rn 
+    FROM pinpoint.public.goals goals
+    WHERE priority IS NOT NULL
+	AND type <> 'pacing-model'
+    ORDER BY 1,2 ASC)
+    WHERE rn = 1
 )
 , targets AS (
    SELECT 
@@ -667,12 +667,8 @@
     , sd.service_level
     , sd.sales_region AS campaign_sales_region
     , sd.sales_sub_region AS campaign_sales_sub_region
-    , IF(f.dest_app_id IS NULL,'N/A',goals.goal_1) AS goal_type_1
-    , IF(f.dest_app_id IS NULL, NULL,goals.goal_1_value) AS goal_1_value
-    , IF(f.dest_app_id IS NULL,'N/A',goals.goal_2) AS goal_type_2
-    , IF(f.dest_app_id IS NULL, NULL,goals.goal_2_value) AS goal_2_value
-    , IF(f.dest_app_id IS NULL,'N/A',goals.goal_3) AS goal_type_3
-    , IF(f.dest_app_id IS NULL, NULL,goals.goal_3_value) AS goal_3_value
+    , goals.type AS goal_type_3
+    , goals.target_value AS goal_3_value
     , f.convx_percentile
     , f.convx_percentile_low
     , f.convx_percentile_high
