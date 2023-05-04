@@ -30,17 +30,20 @@
   , CAST(
         zip(
          ARRAY[0] || covx_likelihood_percentile, covx_likelihood_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
-         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-95', '95-99', '99-99.99', '99.99-100']
+         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
+	 '70-80', '80-90', '90-95', '95-99', '99-99.99', '99.99-100']
         ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS covx_likelihood_bucket
   , CAST(
         zip(
          ARRAY[0] || preshaded_price_percentile, preshaded_price_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
-         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-95', '95-99', '99-99.99', '99.99-100']
+         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
+	 '70-80', '80-90', '90-95', '95-99', '99-99.99', '99.99-100']
         ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS preshaded_price_bucket
   , CAST(
         zip(
          ARRAY[0] || bid_target_percentile, bid_target_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
-         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-95', '95-99', '99-99.99', '99.99-100']
+         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
+	 '70-80', '80-90', '90-95', '95-99', '99-99.99', '99.99-100']
         ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS bid_target_bucket
  FROM percentile_split
  )
