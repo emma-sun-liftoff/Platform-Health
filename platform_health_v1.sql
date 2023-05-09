@@ -10,11 +10,11 @@
            WHEN  bid__creative__ad_format = '300x250' THEN  'mrec'
            ELSE 'html-interstitial' END AS ad_format
     , approx_percentile(bid__price_data__conversion_likelihood,
-        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.9999]) AS covx_likelihood_percentile
+        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]) AS covx_likelihood_percentile
     , approx_percentile(bid__auction_result__winner__price_cpm_micros,
-        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.9999]) AS preshaded_price_percentile
-    , approx_percentile(bid__price_data__ad_group_cpx_bid_micros,
-        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.9999]) AS bid_target_percentile
+        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]) AS preshaded_price_percentile
+    , approx_percentile(bid__price_cpm_micros,
+        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]) AS cpm_percentile
   FROM rtb.impressions_with_bids
   WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
     AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-03-01'
@@ -44,7 +44,7 @@
          ARRAY[0] || bid_target_percentile, bid_target_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
          ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
 	 '70-80', '80-90', '90-95', '95-99', '99-99.99', '99.99-100']
-        ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS bid_target_bucket
+        ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS cpm_bucket
  FROM percentile_split
  )
 , buckets AS (
@@ -59,13 +59,13 @@
   , ppb.low AS preshaded_price_percentile_low
   , ppb.high AS preshaded_price_percentile_high
   , ppb.name AS preshaded_price_percentile
-  , btb.low AS bid_target_percentile_low
-  , btb.high AS bid_target_percentile_high
-  , btb.name AS bid_target_percentile
+  , cb.low AS cpm_percentile_low
+  , cb.high AS cpm_percentile_high
+  , cb.name AS cpm_percentile
   FROM percentile_bucket
   CROSS JOIN UNNEST(covx_likelihood_bucket) AS clb
   CROSS JOIN UNNEST(preshaded_price_bucket) AS ppb
-  CROSS JOIN UNNEST(bid_target_bucket) AS btb
+  CROSS JOIN UNNEST(cpm_bucket) AS cb
 )
 , latest_sfdc_partition AS (
     SELECT MAX(dt) AS latest_dt 
