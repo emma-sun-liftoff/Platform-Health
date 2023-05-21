@@ -1,96 +1,148 @@
-
-  WITH price_percentile_split AS (
-  -- 12 hours 3'37''
-  SELECT
-    bid__app_platform AS platform
-    , bid__bid_request__exchange AS exchange
-    , bid__price_data__model_type AS model_type
-	, CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST'
-	   	   WHEN bid__creative__ad_format = 'native' THEN 'native'
-	       WHEN bid__creative__ad_format IN ('320x50', '728x90') THEN 'banner'
-	       WHEN  bid__creative__ad_format = '300x250' THEN  'mrec'
-	       ELSE 'html-interstitial' END AS ad_format
+CREATE TABLE IF NOT EXISTS prediction_bucket_v1 AS 
+ WITH convx_percentile_split AS (
+ SELECT
+ 	bid__app_platform AS platform
+    , CASE WHEN bid__bid_request__exchange IN ('VUNGLE',
+		'APPLOVIN',
+		'INNERACTIVE_DIRECT',
+		'DOUBLECLICK',
+		'MINTEGRAL',
+		'IRONSOURCE',
+		'UNITY',
+		'APPODEAL',
+		'INMOBI',
+		'VERVE') THEN bid__bid_request__exchange ELSE 'others' END AS exchange_group
+    , CASE WHEN bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
+    	   ELSE bid__price_data__model_type END AS model_type
+    , CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END AS ad_format_group
     , approx_percentile(bid__price_data__conversion_likelihood,
-        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99, 0.9999]) AS price_percentile
+        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]) AS covx_likelihood_percentile
   FROM rtb.impressions_with_bids
-  WHERE date_diff('hour', from_iso8601_timestamp(dt), current_date) <= 12
+  WHERE dt > '2023-05-09T00' AND dt < '2023-05-16T00'
+    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-05-09T00'
+    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') < '2023-05-16T00'
     AND bid__price_data__model_type != ''
   GROUP BY 1,2,3,4
   )
-  , percentile_bucket AS (
+  , private_cpm_percentile_split AS ( 
+ SELECT
+ 	bid__app_platform AS platform
+    , CASE WHEN bid__bid_request__exchange IN ('VUNGLE',
+		'APPLOVIN',
+		'INNERACTIVE_DIRECT',
+		'DOUBLECLICK',
+		'MINTEGRAL',
+		'IRONSOURCE',
+		'UNITY',
+		'APPODEAL',
+		'INMOBI',
+		'VERVE') THEN bid__bid_request__exchange ELSE 'others' END AS exchange_group
+    , CASE WHEN bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
+    	   ELSE bid__price_data__model_type END AS model_type
+    , CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END AS ad_format_group
+    , approx_percentile(CAST(bid__auction_result__winner__price_cpm_micros AS double)/bid__price_data__compensated_margin_bid_multiplier/1000000,
+        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]) AS private_cpm_percentile
+  FROM rtb.impressions_with_bids
+  WHERE dt > '2023-05-09T00' AND dt < '2023-05-16T00'
+    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-05-09T00'
+    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') < '2023-05-16T00'
+    AND bid__price_data__model_type != ''
+  GROUP BY 1,2,3,4
+  )
+  , cpm_percentile_split AS (
+ SELECT
+ 	bid__app_platform AS platform
+    , CASE WHEN bid__bid_request__exchange IN ('VUNGLE',
+		'APPLOVIN',
+		'INNERACTIVE_DIRECT',
+		'DOUBLECLICK',
+		'MINTEGRAL',
+		'IRONSOURCE',
+		'UNITY',
+		'APPODEAL',
+		'INMOBI',
+		'VERVE') THEN bid__bid_request__exchange ELSE 'others' END AS exchange_group
+    , CASE WHEN bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
+    	   ELSE bid__price_data__model_type END AS model_type
+    , CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END AS ad_format_group
+    , approx_percentile(CAST(bid__price_cpm_micros AS double)/1000000,
+        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]) AS cpm_percentile
+  FROM rtb.impressions_with_bids
+  WHERE dt > '2023-05-09T00' AND dt < '2023-05-16T00'
+    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-05-09T00'
+    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') < '2023-05-16T00'
+    AND bid__price_data__model_type != ''
+  GROUP BY 1,2,3,4
+  )
+  , convx_percentile_bucket AS (
   SELECT
   platform
-  , exchange
-  , ad_format
   , model_type
+  , exchange_group
+  , ad_format_group
   , CAST(
-    	zip(
-     	 ARRAY[0] || price_percentile, price_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
-      	 ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', '70-80', '80-90', '90-95', '95-99', '99-99.99', '99.99-100']
-   		) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS percentiles
-FROM price_percentile_split
+        zip(
+         ARRAY[0] || covx_likelihood_percentile, covx_likelihood_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
+         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
+	 '70-80', '80-90', '90-95', '95-99', '99-100']
+        ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS convx_likelihood_bucket
+ FROM convx_percentile_split
  )
-, convx_buckets AS (
-  SELECT 
+  , private_cpm_percentile_bucket AS (
+  SELECT
   platform
   , model_type
-  , exchange
-  , ad_format
-  , p.low
-  , p.high
-  , p.name
-  FROM percentile_bucket
-  CROSS JOIN UNNEST(percentiles) AS p
-)
-, funnel AS (
-    -- fetch impressions
-    SELECT
-    date_trunc('day', from_iso8601_timestamp(dt)) as dt
-    , bid__app_platform AS platform
-    , bid__bid_request__exchange AS exchange
-    , CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST'
-           WHEN bid__creative__ad_format = 'native' THEN 'native'
-           WHEN bid__creative__ad_format IN ('320x50', '728x90') THEN 'banner'
-           WHEN  bid__creative__ad_format = '300x250' THEN  'mrec'
-           ELSE 'html-interstitial' END AS ad_format
-    , bid__price_data__model_type AS model_type
-    , bid__customer_id AS customer_id
-    , bid__app_id AS dest_app_id
-    , bid__campaign_id AS campaign_id
-    , bid__ad_group_id AS ad_group_id
-    , bid__ad_group_type AS ad_group_type
-    , bid__creative__type AS creative_type
-    , sum(spend_micros) AS internal_spend_micros
-    , sum(revenue_micros) AS external_spend_micros
-    , sum(bid__price_data__conversion_likelihood) AS predicted_conversion_likelihood
-    FROM rtb.impressions_with_bids a
-    WHERE dt BETWEEN '2023-04-16' AND '2023-04-19'
-    	AND bid__customer_id = 753
-    GROUP BY 1,2,3,4,5,6,7,8,9,10,11
+  , exchange_group
+  , ad_format_group
+  , CAST(
+        zip(
+         ARRAY[0] || private_cpm_percentile, private_cpm_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
+         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
+	 '70-80', '80-90', '90-95', '95-99', '99-100']
+        ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS private_cpm_bucket
+ FROM private_cpm_percentile_split
  )
-    SELECT
-    f.dt
-    , f.customer_id
-    , f.dest_app_id
-    , f.campaign_id
-    , f.ad_group_id
-    , f.ad_group_type
-    , f.creative_type
-    , f.ad_format
-    , f.platform
-    , f.exchange
-    , f.model_type
-    , cb.name AS convx_percentile
-    , sum(f.internal_spend_micros) AS internal_spend_micros
-    , sum(f.external_spend_micros) AS external_spend_micros
-    , sum(predicted_conversion_likelihood) AS predicted_conversion_likelihood
-  FROM funnel f
-  LEFT JOIN convx_buckets cb
-     ON f.platform = cb.platform
-        AND f.model_type = cb.model_type
-        AND f.ad_format = cb.ad_format
-        AND f.exchange = cb.exchange
-        AND f.predicted_conversion_likelihood >= cb.low 
-        AND (cb.high IS NULL OR f.predicted_conversion_likelihood < cb.high)
-  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12
-  ORDER BY 1,2,3,4,5,6,7,8,9,10,11,12 
+  , cpm_percentile_bucket AS (
+  SELECT
+  platform
+  , model_type
+  , exchange_group
+  , ad_format_group
+  , CAST(
+        zip(
+         ARRAY[0] || cpm_percentile, cpm_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
+         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
+	 '70-80', '80-90', '90-95', '95-99', '99-100']
+        ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS cpm_bucket
+ FROM cpm_percentile_split
+ )
+
+  SELECT 
+  cv.platform
+  , cv.model_type
+  , cv.exchange_group
+  , cv.ad_format_group
+  , clb.low AS convx_percentile_low
+  , clb.high AS convx_percentile_high
+  , clb.name AS convx_percentile
+  , ppb.low AS private_cpm_percentile_low
+  , ppb.high AS private_cpm_percentile_high
+  , ppb.name AS private_cpm_percentile
+  , btb.low AS cpm_percentile_low
+  , btb.high AS cpm_percentile_high
+  , btb.name AS cpm_percentile
+  FROM convx_percentile_bucket cv
+  JOIN private_cpm_percentile_bucket p
+  	ON cv.platform = p.platform
+  	AND cv.model_type = p.model_type
+  	AND cv.exchange_group = p.exchange_group
+  	AND cv.ad_format_group = p.ad_format_group
+  JOIN cpm_percentile_bucket c 
+  	ON cv.platform = c.platform
+  	AND cv.model_type = c.model_type
+  	AND cv.exchange_group = c.exchange_group
+  	AND cv.ad_format_group = c.ad_format_group  
+  CROSS JOIN UNNEST(convx_likelihood_bucket) AS clb
+  CROSS JOIN UNNEST(private_cpm_bucket) AS ppb
+  CROSS JOIN UNNEST(cpm_bucket) AS btb
+ 
