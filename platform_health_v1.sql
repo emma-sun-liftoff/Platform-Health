@@ -1,148 +1,4 @@
- WITH convx_percentile_split AS (
- SELECT
-    bid__app_platform AS platform
-    , CASE WHEN bid__bid_request__exchange IN ('VUNGLE',
-        'APPLOVIN',
-        'INNERACTIVE_DIRECT',
-        'DOUBLECLICK',
-        'MINTEGRAL',
-        'IRONSOURCE',
-        'UNITY',
-        'APPODEAL',
-        'INMOBI',
-        'VERVE') THEN bid__bid_request__exchange ELSE 'others' END AS exchange_group
-    , CASE WHEN bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
-           ELSE bid__price_data__model_type END AS model_type
-    , CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END AS ad_format_group
-    , approx_percentile(bid__price_data__conversion_likelihood,
-        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]) AS covx_likelihood_percentile
-  FROM rtb.impressions_with_bids
-  WHERE CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-05-09T00'
-    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-05-16T00'
-    AND bid__price_data__model_type != ''
-  GROUP BY 1,2,3,4
-  )
-  , private_cpm_percentile_split AS ( 
- SELECT
-    bid__app_platform AS platform
-    , CASE WHEN bid__bid_request__exchange IN ('VUNGLE',
-        'APPLOVIN',
-        'INNERACTIVE_DIRECT',
-        'DOUBLECLICK',
-        'MINTEGRAL',
-        'IRONSOURCE',
-        'UNITY',
-        'APPODEAL',
-        'INMOBI',
-        'VERVE') THEN bid__bid_request__exchange ELSE 'others' END AS exchange_group
-    , CASE WHEN bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
-           ELSE bid__price_data__model_type END AS model_type
-    , CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END AS ad_format_group
-    , approx_percentile(CAST(bid__auction_result__winner__price_cpm_micros AS double)/bid__price_data__compensated_margin_bid_multiplier/1000000,
-        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]) AS private_cpm_percentile
-  FROM rtb.impressions_with_bids
-  WHERE CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-05-09T00'
-    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-05-16T00'
-    AND bid__price_data__model_type != ''
-  GROUP BY 1,2,3,4
-  )
-  , cpm_percentile_split AS (
- SELECT
-    bid__app_platform AS platform
-    , CASE WHEN bid__bid_request__exchange IN ('VUNGLE',
-        'APPLOVIN',
-        'INNERACTIVE_DIRECT',
-        'DOUBLECLICK',
-        'MINTEGRAL',
-        'IRONSOURCE',
-        'UNITY',
-        'APPODEAL',
-        'INMOBI',
-        'VERVE') THEN bid__bid_request__exchange ELSE 'others' END AS exchange_group
-    , CASE WHEN bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
-           ELSE bid__price_data__model_type END AS model_type
-    , CASE WHEN bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END AS ad_format_group
-    , approx_percentile(CAST(bid__price_cpm_micros AS double)/1000000,
-        ARRAY[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 0.95, 0.99]) AS cpm_percentile
-  FROM rtb.impressions_with_bids
-  WHERE CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-05-09T00'
-    AND CONCAT(SUBSTR(to_iso8601(date_trunc('day', from_unixtime(at/1000, 'UTC'))),1,19),'Z') > '2023-05-16T00'
-    AND bid__price_data__model_type != ''
-  GROUP BY 1,2,3,4
-  )
-  , convx_percentile_bucket AS (
-  SELECT
-  platform
-  , model_type
-  , exchange_group
-  , ad_format_group
-  , CAST(
-        zip(
-         ARRAY[0] || covx_likelihood_percentile, covx_likelihood_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
-         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
-     '70-80', '80-90', '90-95', '95-99', '99-100']
-        ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS convx_likelihood_bucket
- FROM convx_percentile_split
- )
-  , private_cpm_percentile_bucket AS (
-  SELECT
-  platform
-  , model_type
-  , exchange_group
-  , ad_format_group
-  , CAST(
-        zip(
-         ARRAY[0] || private_cpm_percentile, private_cpm_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
-         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
-     '70-80', '80-90', '90-95', '95-99', '99-100']
-        ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS private_cpm_bucket
- FROM private_cpm_percentile_split
- )
-  , cpm_percentile_bucket AS (
-  SELECT
-  platform
-  , model_type
-  , exchange_group
-  , ad_format_group
-  , CAST(
-        zip(
-         ARRAY[0] || cpm_percentile, cpm_percentile || CAST(ARRAY[null] as ARRAY(DOUBLE)),
-         ARRAY['0-10', '10-20', '20-30', '30-40', '40-50', '50-60', '60-70', 
-     '70-80', '80-90', '90-95', '95-99', '99-100']
-        ) AS ARRAY(ROW(low DOUBLE, high DOUBLE, name VARCHAR))) AS cpm_bucket
- FROM cpm_percentile_split
- )
- , buckets AS (
-  SELECT 
-  cv.platform
-  , cv.model_type
-  , cv.exchange_group
-  , cv.ad_format_group
-  , clb.low AS convx_percentile_low
-  , clb.high AS convx_percentile_high
-  , clb.name AS convx_percentile
-  , ppb.low AS private_cpm_percentile_low
-  , ppb.high AS private_cpm_percentile_high
-  , ppb.name AS private_cpm_percentile
-  , btb.low AS cpm_percentile_low
-  , btb.high AS cpm_percentile_high
-  , btb.name AS cpm_percentile
-  FROM convx_percentile_bucket cv
-  JOIN private_cpm_percentile_bucket p
-    ON cv.platform = p.platform
-    AND cv.model_type = p.model_type
-    AND cv.exchange_group = p.exchange_group
-    AND cv.ad_format_group = p.ad_format_group
-  JOIN cpm_percentile_bucket c 
-    ON cv.platform = c.platform
-    AND cv.model_type = c.model_type
-    AND cv.exchange_group = c.exchange_group
-    AND cv.ad_format_group = c.ad_format_group  
-  CROSS JOIN UNNEST(convx_likelihood_bucket) AS clb
-  CROSS JOIN UNNEST(private_cpm_bucket) AS ppb
-  CROSS JOIN UNNEST(cpm_bucket) AS btb
- )
-, latest_sfdc_partition AS (
+WITH latest_sfdc_partition AS (
     SELECT MAX(dt) AS latest_dt 
     FROM salesforce_daily.customer_campaign__c  
     WHERE from_iso8601_timestamp(dt) >= CURRENT_TIMESTAMP - INTERVAL '2' DAY
@@ -246,7 +102,7 @@
         + COALESCE(bid__price_data__predicted_imp_to_install_ct_rate, 0)) * LEAST(bid__price_data__predicted_install_to_revenue_rate,500000000)) AS predicted_customer_revenue_micros_ct
     , SUM(bid__price_data__predicted_imp_to_install_vt_rate * LEAST(bid__price_data__predicted_install_to_revenue_rate,500000000)) AS predicted_customer_revenue_micros_vt
     FROM rtb.impressions_with_bids a
-    JOIN buckets b
+    JOIN product_analytics.prediction_bucket_v1 b
         ON a.bid__app_platform = b.platform
         AND (CASE WHEN a.bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
              ELSE a.bid__price_data__model_type END) = b.model_type
@@ -259,7 +115,7 @@
         AND (b.private_cpm_percentile_high IS NULL OR (a.bid__auction_result__winner__price_cpm_micros/a.bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
         AND a.bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
         AND (b.cpm_percentile_high IS NULL OR a.bid__price_cpm_micros < b.cpm_percentile_high * 1000000) 
-    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
 
     UNION ALL 
@@ -317,7 +173,7 @@
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.ad_clicks a
-	JOIN buckets b
+	JOIN product_analytics.prediction_bucket_v1 b
 	    ON a.impression__bid__app_platform = b.platform
 	    AND (CASE WHEN a.impression__bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
 	         ELSE a.impression__bid__price_data__model_type END) = b.model_type
@@ -330,7 +186,7 @@
 	    AND (b.private_cpm_percentile_high IS NULL OR (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
 	    AND a.impression__bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
 	    AND (b.cpm_percentile_high IS NULL OR a.impression__bid__price_cpm_micros < b.cpm_percentile_high * 1000000)  
-    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
     
@@ -389,7 +245,7 @@
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.view_clicks a
-	JOIN buckets b
+	JOIN product_analytics.prediction_bucket_v1 b
 	    ON a.impression__bid__app_platform = b.platform
 	    AND (CASE WHEN a.impression__bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
 	         ELSE a.impression__bid__price_data__model_type END) = b.model_type
@@ -402,7 +258,7 @@
 	    AND (b.private_cpm_percentile_high IS NULL OR (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
 	    AND a.impression__bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
 	    AND (b.cpm_percentile_high IS NULL OR a.impression__bid__price_cpm_micros < b.cpm_percentile_high * 1000000)   
-    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
     
@@ -461,7 +317,7 @@
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.matched_installs a
-	JOIN buckets b
+	JOIN product_analytics.prediction_bucket_v1 b
 	    ON a.ad_click__impression__bid__app_platform = b.platform
 	    AND (CASE WHEN a.ad_click__impression__bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
 	         ELSE a.ad_click__impression__bid__price_data__model_type END) = b.model_type
@@ -474,7 +330,7 @@
 	    AND (b.private_cpm_percentile_high IS NULL OR (a.ad_click__impression__bid__auction_result__winner__price_cpm_micros/a.ad_click__impression__bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
 	    AND a.ad_click__impression__bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
 	    AND (b.cpm_percentile_high IS NULL OR a.ad_click__impression__bid__price_cpm_micros < b.cpm_percentile_high * 1000000) 
-    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
@@ -536,7 +392,7 @@
     FROM rtb.unmatched_installs a
     LEFT JOIN pinpoint.public.campaigns campaigns 
         ON a.tracker_params__campaign_id = campaigns.id
-    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27   
@@ -598,7 +454,7 @@
     FROM rtb.matched_app_events a
     LEFT JOIN pinpoint_event_ids
         ON COALESCE(attribution_event__click__impression__bid__campaign_id, reeng_click__impression__bid__campaign_id, install__ad_click__impression__bid__campaign_id) = pinpoint_event_ids.campaign_id
-	JOIN buckets b
+	JOIN product_analytics.prediction_bucket_v1 b
 	    ON COALESCE(a.install__ad_click__impression__bid__app_platform, a.reeng_click__impression__bid__app_platform, a.attribution_event__click__impression__bid__app_platform) = b.platform
 	    AND (CASE WHEN COALESCE(a.attribution_event__click__impression__bid__price_data__model_type, a.reeng_click__impression__bid__price_data__model_type, a.install__ad_click__impression__bid__price_data__model_type) IN ('revenue','revenue-v3') THEN 'revenue'
 	         ELSE COALESCE(a.attribution_event__click__impression__bid__price_data__model_type, a.reeng_click__impression__bid__price_data__model_type, a.install__ad_click__impression__bid__price_data__model_type) END) = b.model_type
@@ -615,7 +471,7 @@
 	                  (a.attribution_event__click__impression__bid__auction_result__winner__price_cpm_micros/a.attribution_event__click__impression__bid__price_data__compensated_margin_bid_multiplier))) < b.private_cpm_percentile_high * 1000000)            
 	    AND COALESCE(install__ad_click__impression__bid__price_cpm_micros, reeng_click__impression__bid__price_cpm_micros, attribution_event__click__impression__bid__price_cpm_micros) >= b.cpm_percentile_low * 1000000
 	    AND (b.cpm_percentile_high IS NULL OR COALESCE(install__ad_click__impression__bid__price_cpm_micros, reeng_click__impression__bid__price_cpm_micros, attribution_event__click__impression__bid__price_cpm_micros) < b.cpm_percentile_high * 1000000) 
-	WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
+	WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
@@ -677,7 +533,7 @@
     FROM rtb.unmatched_app_events a
     LEFT JOIN pinpoint_event_ids
         ON a.tracker_params__campaign_id = pinpoint_event_ids.campaign_id
-    WHERE dt >= '2023-04-12T01' AND dt < '2023-04-12T03'
+    WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27   
