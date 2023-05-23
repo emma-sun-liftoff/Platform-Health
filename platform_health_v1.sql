@@ -173,19 +173,19 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.ad_clicks a
-	JOIN product_analytics.prediction_bucket_v1 b
-	    ON a.impression__bid__app_platform = b.platform
-	    AND (CASE WHEN a.impression__bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
-	         ELSE a.impression__bid__price_data__model_type END) = b.model_type
-	    AND (CASE WHEN a.impression__bid__bid_request__exchange IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK',
-	    'MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN a.impression__bid__bid_request__exchange ELSE 'others' END) = b.exchange_group
-	  	AND (CASE WHEN a.impression__bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END) = b.ad_format_group
-	    AND a.impression__bid__price_data__conversion_likelihood >= b.convx_percentile_low
-	    AND (b.convx_percentile_high IS NULL OR a.impression__bid__price_data__conversion_likelihood < b.convx_percentile_high)
-	    AND (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) >= b.private_cpm_percentile_low * 1000000
-	    AND (b.private_cpm_percentile_high IS NULL OR (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
-	    AND a.impression__bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
-	    AND (b.cpm_percentile_high IS NULL OR a.impression__bid__price_cpm_micros < b.cpm_percentile_high * 1000000)  
+        JOIN product_analytics.prediction_bucket_v1 b
+            ON a.impression__bid__app_platform = b.platform
+            AND (CASE WHEN a.impression__bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
+                 ELSE a.impression__bid__price_data__model_type END) = b.model_type
+            AND (CASE WHEN a.impression__bid__bid_request__exchange IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK',
+            'MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN a.impression__bid__bid_request__exchange ELSE 'others' END) = b.exchange_group
+                AND (CASE WHEN a.impression__bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END) = b.ad_format_group
+            AND a.impression__bid__price_data__conversion_likelihood >= b.convx_percentile_low
+            AND (b.convx_percentile_high IS NULL OR a.impression__bid__price_data__conversion_likelihood < b.convx_percentile_high)
+            AND (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) >= b.private_cpm_percentile_low * 1000000
+            AND (b.private_cpm_percentile_high IS NULL OR (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
+            AND a.impression__bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
+            AND (b.cpm_percentile_high IS NULL OR a.impression__bid__price_cpm_micros < b.cpm_percentile_high * 1000000)  
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
@@ -245,19 +245,19 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.view_clicks a
-	JOIN product_analytics.prediction_bucket_v1 b
-	    ON a.impression__bid__app_platform = b.platform
-	    AND (CASE WHEN a.impression__bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
-	         ELSE a.impression__bid__price_data__model_type END) = b.model_type
-	    AND (CASE WHEN a.impression__bid__bid_request__exchange IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK',
-	    'MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN a.impression__bid__bid_request__exchange ELSE 'others' END) = b.exchange_group
-	  	AND (CASE WHEN a.impression__bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END) = b.ad_format_group
-	    AND a.impression__bid__price_data__conversion_likelihood >= b.convx_percentile_low
-	    AND (b.convx_percentile_high IS NULL OR a.impression__bid__price_data__conversion_likelihood < b.convx_percentile_high)
-	    AND (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) >= b.private_cpm_percentile_low * 1000000
-	    AND (b.private_cpm_percentile_high IS NULL OR (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
-	    AND a.impression__bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
-	    AND (b.cpm_percentile_high IS NULL OR a.impression__bid__price_cpm_micros < b.cpm_percentile_high * 1000000)   
+        JOIN product_analytics.prediction_bucket_v1 b
+            ON a.impression__bid__app_platform = b.platform
+            AND (CASE WHEN a.impression__bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
+                 ELSE a.impression__bid__price_data__model_type END) = b.model_type
+            AND (CASE WHEN a.impression__bid__bid_request__exchange IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK',
+            'MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN a.impression__bid__bid_request__exchange ELSE 'others' END) = b.exchange_group
+                AND (CASE WHEN a.impression__bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END) = b.ad_format_group
+            AND a.impression__bid__price_data__conversion_likelihood >= b.convx_percentile_low
+            AND (b.convx_percentile_high IS NULL OR a.impression__bid__price_data__conversion_likelihood < b.convx_percentile_high)
+            AND (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) >= b.private_cpm_percentile_low * 1000000
+            AND (b.private_cpm_percentile_high IS NULL OR (a.impression__bid__auction_result__winner__price_cpm_micros/a.impression__bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
+            AND a.impression__bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
+            AND (b.cpm_percentile_high IS NULL OR a.impression__bid__price_cpm_micros < b.cpm_percentile_high * 1000000)   
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
@@ -317,19 +317,19 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_ct
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.matched_installs a
-	JOIN product_analytics.prediction_bucket_v1 b
-	    ON a.ad_click__impression__bid__app_platform = b.platform
-	    AND (CASE WHEN a.ad_click__impression__bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
-	         ELSE a.ad_click__impression__bid__price_data__model_type END) = b.model_type
-	    AND (CASE WHEN a.ad_click__impression__bid__bid_request__exchange IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK',
-	    'MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN a.ad_click__impression__bid__bid_request__exchange ELSE 'others' END) = b.exchange_group
-	    AND (CASE WHEN a.ad_click__impression__bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END) = b.ad_format_group
-	    AND a.ad_click__impression__bid__price_data__conversion_likelihood >= b.convx_percentile_low
-	    AND (b.convx_percentile_high IS NULL OR a.ad_click__impression__bid__price_data__conversion_likelihood < b.convx_percentile_high)
-	    AND (a.ad_click__impression__bid__auction_result__winner__price_cpm_micros/a.ad_click__impression__bid__price_data__compensated_margin_bid_multiplier) >= b.private_cpm_percentile_low * 1000000
-	    AND (b.private_cpm_percentile_high IS NULL OR (a.ad_click__impression__bid__auction_result__winner__price_cpm_micros/a.ad_click__impression__bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
-	    AND a.ad_click__impression__bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
-	    AND (b.cpm_percentile_high IS NULL OR a.ad_click__impression__bid__price_cpm_micros < b.cpm_percentile_high * 1000000) 
+        JOIN product_analytics.prediction_bucket_v1 b
+            ON a.ad_click__impression__bid__app_platform = b.platform
+            AND (CASE WHEN a.ad_click__impression__bid__price_data__model_type IN ('revenue','revenue-v3') THEN 'revenue'
+                 ELSE a.ad_click__impression__bid__price_data__model_type END) = b.model_type
+            AND (CASE WHEN a.ad_click__impression__bid__bid_request__exchange IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK',
+            'MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN a.ad_click__impression__bid__bid_request__exchange ELSE 'others' END) = b.exchange_group
+            AND (CASE WHEN a.ad_click__impression__bid__creative__ad_format = 'video' THEN 'VAST' ELSE 'Non-VAST' END) = b.ad_format_group
+            AND a.ad_click__impression__bid__price_data__conversion_likelihood >= b.convx_percentile_low
+            AND (b.convx_percentile_high IS NULL OR a.ad_click__impression__bid__price_data__conversion_likelihood < b.convx_percentile_high)
+            AND (a.ad_click__impression__bid__auction_result__winner__price_cpm_micros/a.ad_click__impression__bid__price_data__compensated_margin_bid_multiplier) >= b.private_cpm_percentile_low * 1000000
+            AND (b.private_cpm_percentile_high IS NULL OR (a.ad_click__impression__bid__auction_result__winner__price_cpm_micros/a.ad_click__impression__bid__price_data__compensated_margin_bid_multiplier) < b.private_cpm_percentile_high * 1000000)            
+            AND a.ad_click__impression__bid__price_cpm_micros >= b.cpm_percentile_low * 1000000
+            AND (b.cpm_percentile_high IS NULL OR a.ad_click__impression__bid__price_cpm_micros < b.cpm_percentile_high * 1000000) 
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
@@ -454,24 +454,24 @@ WITH latest_sfdc_partition AS (
     FROM rtb.matched_app_events a
     LEFT JOIN pinpoint_event_ids
         ON COALESCE(attribution_event__click__impression__bid__campaign_id, reeng_click__impression__bid__campaign_id, install__ad_click__impression__bid__campaign_id) = pinpoint_event_ids.campaign_id
-	JOIN product_analytics.prediction_bucket_v1 b
-	    ON COALESCE(a.install__ad_click__impression__bid__app_platform, a.reeng_click__impression__bid__app_platform, a.attribution_event__click__impression__bid__app_platform) = b.platform
-	    AND (CASE WHEN COALESCE(a.attribution_event__click__impression__bid__price_data__model_type, a.reeng_click__impression__bid__price_data__model_type, a.install__ad_click__impression__bid__price_data__model_type) IN ('revenue','revenue-v3') THEN 'revenue'
-	         ELSE COALESCE(a.attribution_event__click__impression__bid__price_data__model_type, a.reeng_click__impression__bid__price_data__model_type, a.install__ad_click__impression__bid__price_data__model_type) END) = b.model_type
-	    AND (CASE WHEN COALESCE(attribution_event__click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, install__ad_click__impression__bid__bid_request__exchange) IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK',
-	    'MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN COALESCE(attribution_event__click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, install__ad_click__impression__bid__bid_request__exchange) ELSE 'others' END) = b.exchange_group
-	    AND (CASE WHEN COALESCE(install__ad_click__impression__bid__creative__ad_format,reeng_click__impression__bid__creative__ad_format,attribution_event__click__impression__bid__creative__ad_format) = 'video' THEN 'VAST' ELSE 'Non-VAST' END) = b.ad_format_group
-	    AND COALESCE(install__ad_click__impression__bid__price_data__conversion_likelihood, reeng_click__impression__bid__price_data__conversion_likelihood, attribution_event__click__impression__bid__price_data__conversion_likelihood) >= b.convx_percentile_low
-	    AND (b.convx_percentile_high IS NULL OR COALESCE(install__ad_click__impression__bid__price_data__conversion_likelihood, reeng_click__impression__bid__price_data__conversion_likelihood, attribution_event__click__impression__bid__price_data__conversion_likelihood) < b.convx_percentile_high)
-	    AND COALESCE((a.install__ad_click__impression__bid__auction_result__winner__price_cpm_micros/a.install__ad_click__impression__bid__price_data__compensated_margin_bid_multiplier),
-	                  (a.reeng_click__impression__bid__auction_result__winner__price_cpm_micros/a.reeng_click__impression__bid__price_data__compensated_margin_bid_multiplier),
-	                  (a.attribution_event__click__impression__bid__auction_result__winner__price_cpm_micros/a.attribution_event__click__impression__bid__price_data__compensated_margin_bid_multiplier)) >= b.private_cpm_percentile_low * 1000000
-	    AND (b.private_cpm_percentile_high IS NULL OR (COALESCE((a.install__ad_click__impression__bid__auction_result__winner__price_cpm_micros/a.install__ad_click__impression__bid__price_data__compensated_margin_bid_multiplier),
-	                  (a.reeng_click__impression__bid__auction_result__winner__price_cpm_micros/a.reeng_click__impression__bid__price_data__compensated_margin_bid_multiplier),
-	                  (a.attribution_event__click__impression__bid__auction_result__winner__price_cpm_micros/a.attribution_event__click__impression__bid__price_data__compensated_margin_bid_multiplier))) < b.private_cpm_percentile_high * 1000000)            
-	    AND COALESCE(install__ad_click__impression__bid__price_cpm_micros, reeng_click__impression__bid__price_cpm_micros, attribution_event__click__impression__bid__price_cpm_micros) >= b.cpm_percentile_low * 1000000
-	    AND (b.cpm_percentile_high IS NULL OR COALESCE(install__ad_click__impression__bid__price_cpm_micros, reeng_click__impression__bid__price_cpm_micros, attribution_event__click__impression__bid__price_cpm_micros) < b.cpm_percentile_high * 1000000) 
-	WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+        JOIN product_analytics.prediction_bucket_v1 b
+            ON COALESCE(a.install__ad_click__impression__bid__app_platform, a.reeng_click__impression__bid__app_platform, a.attribution_event__click__impression__bid__app_platform) = b.platform
+            AND (CASE WHEN COALESCE(a.attribution_event__click__impression__bid__price_data__model_type, a.reeng_click__impression__bid__price_data__model_type, a.install__ad_click__impression__bid__price_data__model_type) IN ('revenue','revenue-v3') THEN 'revenue'
+                 ELSE COALESCE(a.attribution_event__click__impression__bid__price_data__model_type, a.reeng_click__impression__bid__price_data__model_type, a.install__ad_click__impression__bid__price_data__model_type) END) = b.model_type
+            AND (CASE WHEN COALESCE(attribution_event__click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, install__ad_click__impression__bid__bid_request__exchange) IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK',
+            'MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN COALESCE(attribution_event__click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, install__ad_click__impression__bid__bid_request__exchange) ELSE 'others' END) = b.exchange_group
+            AND (CASE WHEN COALESCE(install__ad_click__impression__bid__creative__ad_format,reeng_click__impression__bid__creative__ad_format,attribution_event__click__impression__bid__creative__ad_format) = 'video' THEN 'VAST' ELSE 'Non-VAST' END) = b.ad_format_group
+            AND COALESCE(install__ad_click__impression__bid__price_data__conversion_likelihood, reeng_click__impression__bid__price_data__conversion_likelihood, attribution_event__click__impression__bid__price_data__conversion_likelihood) >= b.convx_percentile_low
+            AND (b.convx_percentile_high IS NULL OR COALESCE(install__ad_click__impression__bid__price_data__conversion_likelihood, reeng_click__impression__bid__price_data__conversion_likelihood, attribution_event__click__impression__bid__price_data__conversion_likelihood) < b.convx_percentile_high)
+            AND COALESCE((a.install__ad_click__impression__bid__auction_result__winner__price_cpm_micros/a.install__ad_click__impression__bid__price_data__compensated_margin_bid_multiplier),
+                          (a.reeng_click__impression__bid__auction_result__winner__price_cpm_micros/a.reeng_click__impression__bid__price_data__compensated_margin_bid_multiplier),
+                          (a.attribution_event__click__impression__bid__auction_result__winner__price_cpm_micros/a.attribution_event__click__impression__bid__price_data__compensated_margin_bid_multiplier)) >= b.private_cpm_percentile_low * 1000000
+            AND (b.private_cpm_percentile_high IS NULL OR (COALESCE((a.install__ad_click__impression__bid__auction_result__winner__price_cpm_micros/a.install__ad_click__impression__bid__price_data__compensated_margin_bid_multiplier),
+                          (a.reeng_click__impression__bid__auction_result__winner__price_cpm_micros/a.reeng_click__impression__bid__price_data__compensated_margin_bid_multiplier),
+                          (a.attribution_event__click__impression__bid__auction_result__winner__price_cpm_micros/a.attribution_event__click__impression__bid__price_data__compensated_margin_bid_multiplier))) < b.private_cpm_percentile_high * 1000000)            
+            AND COALESCE(install__ad_click__impression__bid__price_cpm_micros, reeng_click__impression__bid__price_cpm_micros, attribution_event__click__impression__bid__price_cpm_micros) >= b.cpm_percentile_low * 1000000
+            AND (b.cpm_percentile_high IS NULL OR COALESCE(install__ad_click__impression__bid__price_cpm_micros, reeng_click__impression__bid__price_cpm_micros, attribution_event__click__impression__bid__price_cpm_micros) < b.cpm_percentile_high * 1000000) 
+        WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27
@@ -559,8 +559,8 @@ WITH latest_sfdc_partition AS (
     , f.is_nonpersonalized
     , f.click_source
     , f.convx_percentile
-    , f.convx_percentile_low
-    , f.convx_percentile_high
+    , CASE WHEN f.model_type = 'revenue' THEN CAST(f.convx_percentile_low AS double)/1000000 ELSE f.convx_percentile_low END AS convx_percentile_low
+    , CASE WHEN f.model_type = 'revenue' THEN CAST(f.convx_percentile_high AS double)/1000000 ELSE f.convx_percentile_high END AS convx_percentile_high
     , f.private_cpm_percentile
     , f.private_cpm_percentile_low
     , f.private_cpm_percentile_high
