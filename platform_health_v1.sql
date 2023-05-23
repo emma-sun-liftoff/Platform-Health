@@ -594,7 +594,7 @@ WITH latest_sfdc_partition AS (
     , sum(f.installs) AS installs
     , sum(f.internal_spend) AS internal_spend
     , sum(f.external_spend) AS external_spend
-    , sum(IF(from_iso8601_timestamp(f.at) - from_iso8601_timestamp(IF(f.ad_group_type='reengagement', f.click_at, f.install_at)) < INTERVAL '7' DAY, f.customer_revenue_d7/1000000, 0)) AS customer_revenue_d7
+    , sum(IF(from_iso8601_timestamp(f.at) - from_iso8601_timestamp(IF(f.ad_group_type='reengagement', f.click_at, f.install_at)) < INTERVAL '7' DAY, CAST(f.customer_revenue_d7 AS double)/1000000, 0)) AS customer_revenue_d7
     , sum(IF(from_iso8601_timestamp(f.at) - from_iso8601_timestamp(IF(f.ad_group_type='reengagement', f.click_at, f.install_at)) < INTERVAL '7' DAY, f.target_events_d7, 0)) AS target_events_d7
     , sum(IF(from_iso8601_timestamp(f.at) - from_iso8601_timestamp(IF(f.ad_group_type='reengagement', f.click_at, f.install_at)) < INTERVAL '7' DAY, f.target_events_first_d7, 0)) AS target_events_first_d7 
     , sum(predicted_conversion_likelihood) AS predicted_conversion_likelihood
