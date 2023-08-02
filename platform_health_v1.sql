@@ -125,7 +125,7 @@ WITH latest_sfdc_partition AS (
     , CONCAT(substr(to_iso8601(date_trunc('hour', from_unixtime(at/1000, 'UTC'))),1,19),'Z') AS click_at
     , NULL AS install_at
     , CONCAT(substr(to_iso8601(date_trunc('hour', from_unixtime(at/1000, 'UTC'))),1,19),'Z') AS at
-    , impression__bid__app_platform as platform
+    , impression__bid__app_platform AS platform
     , CASE WHEN impression__bid__bid_request__exchange IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK','MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN impression__bid__bid_request__exchange ELSE 'others' END AS exchange_group
     , CASE WHEN geo__country IN ('US','GB','IN','JP','BR') THEN geo__country ELSE 'others' END AS country_group
     , impression__bid__customer_id as customer_id
@@ -197,7 +197,7 @@ WITH latest_sfdc_partition AS (
     , CONCAT(substr(to_iso8601(date_trunc('hour', from_unixtime(at/1000, 'UTC'))),1,19),'Z') AS click_at
     , NULL AS install_at
     , CONCAT(substr(to_iso8601(date_trunc('hour', from_unixtime(at/1000, 'UTC'))),1,19),'Z') AS at
-    , impression__bid__app_platform as platform
+    , impression__bid__app_platform AS platform
     , CASE WHEN impression__bid__bid_request__exchange IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK','MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN impression__bid__bid_request__exchange ELSE 'others' END AS exchange_group
     , CASE WHEN geo__country IN ('US','GB','IN','JP','BR') THEN geo__country ELSE 'others' END AS country_group
     , impression__bid__customer_id as customer_id
@@ -404,9 +404,9 @@ WITH latest_sfdc_partition AS (
     , CONCAT(SUBSTR(to_iso8601(date_trunc('hour', from_unixtime(COALESCE(attribution_event__click__at, reeng_click__at, install__ad_click__at)/1000, 'UTC'))),1,19),'Z') AS click_at
     , CONCAT(SUBSTR(to_iso8601(date_trunc('hour', from_unixtime(install__at/1000, 'UTC'))),1,19),'Z') AS install_at
     , CONCAT(SUBSTR(to_iso8601(date_trunc('hour', from_unixtime(event_timestamp/1000, 'UTC'))),1,19),'Z') AS at
-    , COALESCE(attribution_event__click__impression__bid__app_platform, reeng_click__impression__bid__app_platform, install__ad_click__impression__bid__app_platform) AS platform
-    , CASE WHEN COALESCE(attribution_event__click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, install__ad_click__impression__bid__bid_request__exchange) IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK','MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN COALESCE(attribution_event__click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, install__ad_click__impression__bid__bid_request__exchange) ELSE 'others' END AS exchange_group
-    , CASE WHEN COALESCE(attribution_event__click__geo__country, reeng_click__geo__country, install__geo__country) IN ('US','GB','IN','JP','BR') THEN COALESCE(attribution_event__click__geo__country, reeng_click__geo__country, install__geo__country) ELSE 'others' END AS country_group
+    , COALESCE(install__ad_click__impression__bid__app_platform, reeng_click__impression__bid__app_platform,attribution_event__click__impression__bid__app_platform) AS platform
+    , CASE WHEN COALESCE(install__ad_click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, attribution_event__click__impression__bid__bid_request__exchange ) IN ('VUNGLE','APPLOVIN','INNERACTIVE_DIRECT','DOUBLECLICK','MINTEGRAL','IRONSOURCE','UNITY','APPODEAL','INMOBI','VERVE') THEN COALESCE(attribution_event__click__impression__bid__bid_request__exchange, reeng_click__impression__bid__bid_request__exchange, install__ad_click__impression__bid__bid_request__exchange) ELSE 'others' END AS exchange_group
+    , CASE WHEN COALESCE(install__geo__country, reeng_click__geo__country, attribution_event__click__geo__country) IN ('US','GB','IN','JP','BR') THEN COALESCE(install__geo__country, reeng_click__geo__country, attribution_event__click__geo__country) ELSE 'others' END AS country_group
     , COALESCE(attribution_event__click__impression__bid__customer_id, reeng_click__impression__bid__customer_id, install__ad_click__impression__bid__customer_id) AS customer_id
     , COALESCE(attribution_event__click__impression__bid__app_id, reeng_click__impression__bid__app_id, install__ad_click__impression__bid__app_id) AS dest_app_id 
     , COALESCE(attribution_event__click__impression__bid__campaign_id, reeng_click__impression__bid__campaign_id, install__ad_click__impression__bid__campaign_id) AS campaign_id
