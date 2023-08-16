@@ -1,18 +1,40 @@
+-- dagger: https://dagger.liftoff.io/pipelines/1137
 WITH latest_sfdc_partition AS (
     SELECT MAX(dt) AS latest_dt 
     FROM salesforce_daily.customer_campaign__c  
     WHERE from_iso8601_timestamp(dt) >= CURRENT_TIMESTAMP - INTERVAL '2' DAY
 )
- , saleforce_data AS (
-    SELECT 
-      b.id AS campaign_id
-      , sd.sales_region__c as sales_region
-      , sd.service_level__c AS service_level
-      , sd.sales_sub_region__c AS sales_sub_region
-    FROM salesforce_daily.customer_campaign__c sd 
-    JOIN pinpoint.public.campaigns b      
-        ON sd.campaign_id_18_digit__c = b.salesforce_campaign_id
-    WHERE sd.dt = (select latest_dt FROM latest_sfdc_partition)
+, latest_partition AS 
+(SELECT 'customer_campaign__c' AS table_name
+	, max(dt) AS latest_dt 
+ FROM salesforce_daily."customer_campaign__c$partitions" 
+ WHERE from_iso8601_timestamp(dt) >= CURRENT_TIMESTAMP - INTERVAL '4' DAY 
+ GROUP BY 1
+
+ UNION ALL
+
+ SELECT 'opportunity' AS table_name
+	, max(dt) AS latest_dt 
+ FROM salesforce_daily."opportunity$partitions" 
+ WHERE from_iso8601_timestamp(dt) >= CURRENT_TIMESTAMP - INTERVAL '4' DAY 
+ GROUP BY 1
+)
+
+, saleforce_data AS (
+ SELECT customer_id
+  , c.id AS campaign_id
+  , cc.sales_region__c AS sales_region
+  , cc.sales_sub_region__c AS sales_sub_region
+  , o.scale_zone__c AS scale_zone
+  , cc.service_level__c AS service_level
+ FROM pinpoint.public.campaigns c 
+ LEFT JOIN salesforce_daily.customer_campaign__c cc
+ 	ON cc.campaign_id_18_digit__c = c.salesforce_campaign_id
+ LEFT JOIN salesforce_daily.opportunity o
+ 	ON o.opportunity_id_18_digit__c = cc.opportunity__c
+ WHERE cc.dt = (SELECT latest_dt FROM latest_partition WHERE table_name = 'customer_campaign__c')
+ 	AND o.dt = (SELECT latest_dt FROM latest_partition WHERE table_name = 'opportunity')
+ 	AND c.state = 'enabled'
 )
  , goals AS (
      SELECT 
@@ -29,12 +51,6 @@ WITH latest_sfdc_partition AS (
     AND type <> 'pacing-model'
     ORDER BY 1,2 ASC)
     WHERE rn = 1
-)
-, treasurer_target AS (
-   SELECT 
-    campaign_id
-    , target AS treasurer_target
-   FROM pinpoint.public.campaign_treasurer_configs
 )
 , pinpoint_event_ids AS (
   SELECT
@@ -97,6 +113,7 @@ WITH latest_sfdc_partition AS (
     , SUM(bid__price_data__predicted_imp_to_install_vt_rate * LEAST(bid__price_data__predicted_install_to_revenue_rate,500000000)) AS predicted_customer_revenue_micros_vt
     FROM rtb.impressions_with_bids a
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    --dt >= '2023-08-14T01' AND dt < '2023-08-14T03'
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
 
     UNION ALL 
@@ -143,6 +160,7 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.ad_clicks a
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    --dt >= '2023-08-14T01' AND dt < '2023-08-14T03'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
     
@@ -190,6 +208,7 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.view_clicks a  
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    --dt >= '2023-08-14T01' AND dt < '2023-08-14T03'
         AND has_prior_click = FALSE
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
     UNION ALL    
@@ -236,6 +255,7 @@ WITH latest_sfdc_partition AS (
     , sum(0) AS predicted_customer_revenue_micros_vt
     FROM rtb.matched_installs a
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    --dt >= '2023-08-14T01' AND dt < '2023-08-14T03'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -286,6 +306,7 @@ WITH latest_sfdc_partition AS (
     LEFT JOIN pinpoint.public.campaigns campaigns 
         ON a.tracker_params__campaign_id = campaigns.id
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    --dt >= '2023-08-14T01' AND dt < '2023-08-14T03'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -336,6 +357,7 @@ WITH latest_sfdc_partition AS (
     LEFT JOIN pinpoint_event_ids
         ON COALESCE(attribution_event__click__impression__bid__campaign_id, reeng_click__impression__bid__campaign_id, install__ad_click__impression__bid__campaign_id) = pinpoint_event_ids.campaign_id
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    --dt >= '2023-08-14T01' AND dt < '2023-08-14T03'
     AND for_reporting = TRUE
     AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -386,6 +408,7 @@ WITH latest_sfdc_partition AS (
     LEFT JOIN pinpoint_event_ids
         ON a.tracker_params__campaign_id = pinpoint_event_ids.campaign_id
     WHERE dt >= '{{ dt }}' AND dt < '{{ dt_add(dt, hours=1) }}'
+    --dt >= '2023-08-14T01' AND dt < '2023-08-14T03'
         AND for_reporting = TRUE
         AND NOT is_uncredited
     GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15
@@ -406,14 +429,19 @@ WITH latest_sfdc_partition AS (
     , f.model_type
     , f.is_nonpersonalized
     , f.click_source   
-    , sd.service_level   
+    , sd.service_level AS service_level
     , cu.company AS customer_name
     , apps.display_name AS dest_app_name 
+    , apps.category AS dest_app_category
     , sd.sales_region AS campaign_sales_region
     , sd.sales_sub_region AS campaign_sales_sub_region
+    , sd.scale_zone AS scale_zone
+	, cc.current_optimization_state AS current_optimization_state
+	, cc.display_name AS campaign_name
+	, ct.name AS campaign_type
     , goals.type AS goal_type_3
     , goals.target_value AS goal_3_value
-    , treasurer_target.treasurer_target AS treasurer_target
+    , IF(trackers.name = 'apple-skan', 'SKAN', IF(trackers.name = 'no-tracker', 'NON-MEASURABLE', IF(f.campaign_id is null, 'N/A', 'MMP'))) AS campaign_tracker_type
     , CASE WHEN f.creative_type = 'VAST' AND apps.video_viewthrough_enabled = TRUE THEN TRUE
            WHEN f.ad_format in ('banner','mrec') AND f.creative_type = 'HTML' AND apps.banner_viewthrough_enabled = TRUE THEN TRUE
            WHEN f.ad_format = 'interstitial' AND f.creative_type = 'HTML' AND apps.interstitial_viewthrough_enabled = TRUE THEN TRUE
@@ -442,12 +470,16 @@ WITH latest_sfdc_partition AS (
   FROM funnel f
   LEFT JOIN pinpoint.public.customers cu
      ON f.customer_id = cu.id
-  LEFT JOIN saleforce_data sd 
-     ON f.campaign_id = sd.campaign_id
+LEFT JOIN saleforce_data sd 
+  ON f.campaign_id = sd.campaign_id AND f.customer_id = sd.customer_id
   LEFT JOIN pinpoint.public.apps apps
-     ON f.dest_app_id = apps.id   
+     ON f.dest_app_id = apps.id AND f.customer_id = apps.customer_id
   LEFT JOIN goals
      ON f.campaign_id = goals.campaign_id
-  LEFT JOIN treasurer_target 
-     ON f.campaign_id = treasurer_target.campaign_id
-  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23
+LEFT JOIN pinpoint.public.campaigns cc
+  ON f.campaign_id = cc.id
+LEFT JOIN pinpoint.public.campaign_types ct
+  ON cc.campaign_type_id = ct.id
+LEFT JOIN pinpoint.public.trackers trackers
+  ON trackers.id = cc.tracker_id
+  GROUP BY 1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28
